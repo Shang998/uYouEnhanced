@@ -2,13 +2,9 @@
 #import <YouTubeHeader/YTAssetLoader.h>
 
 @interface AppIconOptionsController () <UITableViewDataSource, UITableViewDelegate>
-
 @property (strong, nonatomic) UITableView *tableView;
 @property (strong, nonatomic) NSArray<NSString *> *appIcons;
 @property (assign, nonatomic) NSInteger selectedIconIndex;
-@property (strong, nonatomic) UIImageView *backButton;
-@property (assign, nonatomic) UIUserInterfaceStyle pageStyle;
-
 @end
 
 @implementation AppIconOptionsController
@@ -17,37 +13,23 @@
     [super viewDidLoad];
 
     self.title = @"Change App Icon";
-    [self.navigationController.navigationBar setTitleTextAttributes:@{NSFontAttributeName: [UIFont fontWithName:@"YTSans-Bold" size:22], NSForegroundColorAttributeName: [UIColor whiteColor]}];
-
     self.selectedIconIndex = -1;
-    
-    self.tableView = [[UITableView alloc] initWithFrame:self.view.bounds style:UITableViewStylePlain];
+
+    self.tableView = [[UITableView alloc] initWithFrame:self.view.bounds style:UITableViewStyleGrouped];
     self.tableView.dataSource = self;
     self.tableView.delegate = self;
-    self.tableView.backgroundColor = (self.pageStyle == UIUserInterfaceStyleLight) ? [UIColor whiteColor] : [UIColor blackColor];
     [self.view addSubview:self.tableView];
 
-    UIBarButtonItem *backButton = [[UIBarButtonItem alloc] initWithTitle:@"" style:UIBarButtonItemStylePlain target:self action:@selector(back)];
-    UIImage *backImage = [UIImage imageNamed:@"yt_outline_chevron_left_ios_24pt" inBundle:[NSBundle mainBundle] compatibleWithTraitCollection:nil];
-    if (!backImage) {
-        backButton.image = [UIImage systemImageNamed:@"chevron.backward"];
-    } else {
-        backButton.image = backImage;
-    }
-    [backButton setTitleTextAttributes:@{NSForegroundColorAttributeName: [UIColor blackColor], NSFontAttributeName: [UIFont fontWithName:@"YTSans-Medium" size:20]} forState:UIControlStateNormal];
-    self.navigationItem.leftBarButtonItem = backButton;
-
-    UIBarButtonItem *resetButton = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"arrow.clockwise.circle.fill"] style:UIBarButtonItemStylePlain target:self action:@selector(resetIcon)];
-
-    UIBarButtonItem *saveButton = [[UIBarButtonItem alloc] initWithTitle:@"Save" style:UIBarButtonItemStylePlain target:self action:@selector(saveIcon)];
-    [saveButton setTitleTextAttributes:@{NSForegroundColorAttributeName: [UIColor colorWithRed:203.0/255.0 green:22.0/255.0 blue:51.0/255.0 alpha:1.0], NSFontAttributeName: [UIFont fontWithName:@"YTSans-Medium" size:20]} forState:UIControlStateNormal];
-
-    self.navigationItem.rightBarButtonItems = @[saveButton, resetButton];
+    self.backButton = [UIButton buttonWithType:UIButtonTypeCustom];
+    [self.backButton setImage:[UIImage systemImageNamed:@"chevron.backward"] forState:UIControlStateNormal];
+    [self.backButton addTarget:self action:@selector(back) forControlEvents:UIControlEventTouchUpInside];
+    UIBarButtonItem *customBackButton = [[UIBarButtonItem alloc] initWithCustomView:self.backButton];
+    self.navigationItem.leftBarButtonItem = customBackButton;
 
     NSString *path = [[NSBundle mainBundle] pathForResource:@"uYouPlus" ofType:@"bundle"];
     NSBundle *bundle = [NSBundle bundleWithPath:path];
     self.appIcons = [bundle pathsForResourcesOfType:@"png" inDirectory:@"AppIcons"];
-    
+
     if (![UIApplication sharedApplication].supportsAlternateIcons) {
         NSLog(@"Alternate icons are not supported on this device.");
     }
@@ -57,33 +39,27 @@
     return self.appIcons.count;
 }
 
+- (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
+    return 80.0;
+}
+
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"Cell"];
     if (!cell) {
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"Cell"];
+        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:@"Cell"];
+        cell.selectionStyle = UITableViewCellSelectionStyleNone;
     }
     
     NSString *iconPath = self.appIcons[indexPath.row];
+    cell.textLabel.text = [iconPath.lastPathComponent stringByDeletingPathExtension];
+    
     UIImage *iconImage = [UIImage imageWithContentsOfFile:iconPath];
+    cell.imageView.image = iconImage;
+    cell.imageView.layer.cornerRadius = 16.0;
+    cell.imageView.clipsToBounds = YES;
+    cell.imageView.contentMode = UIViewContentModeScaleAspectFit;
     
-    cell.backgroundColor = [UIColor whiteColor];
-    cell.selectionStyle = UITableViewCellSelectionStyleNone;
-    
-    UIImageView *iconImageView = [[UIImageView alloc] initWithImage:iconImage];
-    iconImageView.frame = CGRectMake(16, 8, 24, 24);
-    [cell.contentView addSubview:iconImageView];
-    
-    UILabel *iconNameLabel = [[UILabel alloc] initWithFrame:CGRectMake(56, 0, self.view.frame.size.width - 56, 40)];
-    iconNameLabel.text = [iconPath.lastPathComponent stringByDeletingPathExtension];
-    iconNameLabel.textColor = [UIColor blackColor];
-    iconNameLabel.font = [UIFont systemFontOfSize:18.0 weight:UIFontWeightMedium];
-    [cell.contentView addSubview:iconNameLabel];
-    
-    if (indexPath.row == self.selectedIconIndex) {
-        cell.accessoryType = UITableViewCellAccessoryCheckmark;
-    } else {
-        cell.accessoryType = UITableViewCellAccessoryNone;
-    }
+    cell.accessoryType = (indexPath.row == self.selectedIconIndex) ? UITableViewCellAccessoryCheckmark : UITableViewCellAccessoryNone;
     
     return cell;
 }
@@ -92,6 +68,7 @@
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     
     self.selectedIconIndex = indexPath.row;
+    [self saveIcon];
     [self.tableView reloadData];
 }
 
@@ -109,37 +86,31 @@
 }
 
 - (void)saveIcon {
-    NSString *selectedIconPath = self.selectedIconIndex >= 0 ? self.appIcons[self.selectedIconIndex] : nil;
-    if (selectedIconPath) {
-        NSURL *iconURL = [NSURL fileURLWithPath:selectedIconPath];
-        if ([[UIApplication sharedApplication] respondsToSelector:@selector(setAlternateIconName:completionHandler:)]) {
-            [[UIApplication sharedApplication] setAlternateIconName:selectedIconPath completionHandler:^(NSError * _Nullable error) {
-                if (error) {
-                    NSLog(@"Error setting alternate icon: %@", error.localizedDescription);
-                    [self showAlertWithTitle:@"Error" message:@"Failed to set alternate icon"];
-                } else {
-                    NSLog(@"Alternate icon set successfully");
-                    [self showAlertWithTitle:@"Success" message:@"Alternate icon set successfully"];
-                }
-            }];
-        } else {
-            NSMutableDictionary *dict = [NSMutableDictionary dictionary];
-            [dict setObject:iconURL forKey:@"iconURL"];
-            NSString *filePath = [[NSBundle mainBundle] pathForResource:@"Info" ofType:@"plist"];
-            [dict writeToFile:filePath atomically:YES];
-
-            [self showAlertWithTitle:@"Alternate Icon" message:@"Please restart the app to apply the alternate icon"];
-        }
+    if (self.selectedIconIndex < 0) {
+        [self showAlertWithTitle:@"Error" message:@"No icon selected"];
+        return;
     }
+
+    NSString *selectedIcon = self.appIcons[self.selectedIconIndex];
+    NSString *iconName = [selectedIcon.lastPathComponent stringByDeletingPathExtension];
+
+    [[UIApplication sharedApplication] setAlternateIconName:iconName completionHandler:^(NSError * _Nullable error) {
+        if (error) {
+            NSLog(@"Error setting alternate icon: %@", error.localizedDescription);
+            [self showAlertWithTitle:@"Error" message:@"Failed to set alternate icon"];
+        } else {
+            NSLog(@"Alternate icon set successfully");
+            [self showAlertWithTitle:@"Success" message:@"Alternate icon set successfully"];
+            [self.tableView reloadData];
+        }
+    }];
 }
 
 - (void)showAlertWithTitle:(NSString *)title message:(NSString *)message {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        UIAlertController *alert = [UIAlertController alertControllerWithTitle:title message:message preferredStyle:UIAlertControllerStyleAlert];
-        UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil];
-        [alert addAction:okAction];
-        [self presentViewController:alert animated:YES completion:nil];
-    });
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:title message:message preferredStyle:UIAlertControllerStyleAlert];
+    UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil];
+    [alert addAction:okAction];
+    [self presentViewController:alert animated:YES completion:nil];
 }
 
 - (void)back {
